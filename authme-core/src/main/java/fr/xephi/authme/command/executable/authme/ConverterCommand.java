@@ -10,6 +10,7 @@ import fr.xephi.authme.datasource.converter.Converter;
 import fr.xephi.authme.datasource.converter.LibreLoginConverter;
 import fr.xephi.authme.datasource.converter.LimboAuthConverter;
 import fr.xephi.authme.datasource.converter.MySqlToSqlite;
+import fr.xephi.authme.datasource.converter.NexAuthConverter;
 import fr.xephi.authme.datasource.converter.NLoginConverter;
 import fr.xephi.authme.datasource.converter.OpeNLoginConverter;
 import fr.xephi.authme.datasource.converter.SqliteToSql;
@@ -85,6 +86,7 @@ public class ConverterCommand implements ExecutableCommand {
             .put("authplus", AuthPlusConverter.class)
             .put("librelogin", LibreLoginConverter.class)
             .put("limboauth", LimboAuthConverter.class)
+            .put("nexauth", NexAuthConverter.class)
             .put("nlogin", NLoginConverter.class)
             .put("openlogin", OpeNLoginConverter.class)
             .put("tiauth", TiAuthConverter.class)

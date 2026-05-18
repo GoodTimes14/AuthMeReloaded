@@ -5,7 +5,7 @@ Run a converter with `/authme converter <name>` (requires `authme.admin.converte
 
 ---
 
-AuthMeReloaded currently ships the **Auth+**, **LibreLogin**, **LimboAuth**, **nLogin**, **OpeNLogin**, and **tiAuth** converters, plus the built-in database migration helpers below.
+AuthMeReloaded currently ships the **Auth+**, **LibreLogin**, **LimboAuth**, **NexAuth**, **nLogin**, **OpeNLogin**, and **tiAuth** converters, plus the built-in database migration helpers below.
 
 ---
 
@@ -52,6 +52,40 @@ Migrates accounts from the **LibreLogin** plugin.
 | `LOGIT-SHA-256` | `SALTEDSHA256` |
 
 If your LibreLogin database contains accounts with **mixed algorithms**, set `passwordHash` to the most common one and ask remaining players to reset their password after migration.
+
+**Notes:**
+- Premium UUIDs are preserved (players enrolled in premium bypass are migrated as-is).
+- TOTP secrets are migrated.
+- Players already present in AuthMe's database are skipped automatically.
+
+---
+
+### NexAuth → `nexauth`
+
+Migrates accounts from the **NexAuth** plugin (a fork of LibreLogin).
+
+**The converter reads `plugins/NexAuth/config.conf` to determine the storage backend.**
+
+**Supported database types:**
+
+| NexAuth `database.type` | Requirement |
+|---|---|
+| `nexauth-sqlite` (default) | Reads the SQLite database at `plugins/NexAuth/<path>` (default: `user-data.db`) directly — no shared database required. |
+| `nexauth-mysql` / `nexauth-postgresql` | NexAuth and AuthMe must share the same database (same host, port, and database name). |
+
+**Source table:** `librepremium_data`
+
+**Before running**, set `passwordHash` in AuthMe's `config.yml` to match the algorithm used by NexAuth. NexAuth stores a per-account algorithm identifier, so the mapping is:
+
+| NexAuth algorithm | AuthMe `passwordHash` |
+|---|---|
+| `BCrypt-2A` (default) | `BCRYPT` |
+| `Argon-2ID` | `ARGON2` |
+| `SHA-256` | `SHA256` |
+| `SHA-512` | `DOUBLE_SHA512` |
+| `LOGIT-SHA-256` | `SALTEDSHA256` |
+
+If your NexAuth database contains accounts with **mixed algorithms**, set `passwordHash` to the most common one and ask remaining players to reset their password after migration.
 
 **Notes:**
 - Premium UUIDs are preserved (players enrolled in premium bypass are migrated as-is).
