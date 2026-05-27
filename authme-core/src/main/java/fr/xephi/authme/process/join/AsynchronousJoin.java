@@ -160,10 +160,9 @@ public class AsynchronousJoin implements AsynchronousProcess {
         boolean shouldSkipPostJoinDialog = preJoinDialogService.consumeSkipPostJoinDialog(playerId);
         boolean pendingForceLogin = preJoinDialogService.consumePendingForceLogin(playerId);
         String pendingKick = preJoinDialogService.consumePendingKickMessage(playerId);
-        if (pendingKick != null) {
-            bukkitService.scheduleSyncTaskFromOptionallyAsyncTask(player, () -> player.kickPlayer(pendingKick));
-            return;
-        }
+        // pendingKick is applied below, after proxy/premium/session checks, which take priority:
+        // a Velocity perform.login arriving just after the player cancelled the pre-join dialog
+        // must win over the dialog cancel kick.
 
         if (!validationService.fulfillsNameRestrictions(player)) {
             handlePlayerWithUnmetNameRestriction(player, ip);
@@ -262,6 +261,14 @@ public class AsynchronousJoin implements AsynchronousProcess {
         // (if the perform.login message arrived and was processed before this async task completes).
         // Scheduling a limbo in that case would freeze the player permanently.
         if (playerCache.isAuthenticated(name)) {
+            return;
+        }
+
+        // Apply the pre-join dialog cancel kick here, after proxy/premium/session checks above have
+        // had a chance to take priority and return early. If perform.login arrived in time, the
+        // player was already auto-logged in above and pendingKick is silently discarded.
+        if (pendingKick != null) {
+            bukkitService.scheduleSyncTaskFromOptionallyAsyncTask(player, () -> player.kickPlayer(pendingKick));
             return;
         }
 
