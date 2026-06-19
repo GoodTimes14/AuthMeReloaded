@@ -339,6 +339,8 @@ final class VelocityProxyBridge {
 
         String normalizedName = normalizeName(playerName);
         UUID verifiedPremiumUuid = premiumVerificationManager.getVerifiedPremiumUuid(normalizedName);
+        logger.info("onServerConnected: {} verifiedPremiumUuid={} connectingToAuthServer={}",
+            normalizedName, verifiedPremiumUuid, connectingToAuthServer);
 
         boolean isPremiumJoin = connectingToAuthServer && verifiedPremiumUuid != null;
         if (!authenticationStore.isAuthenticated(normalizedName) && !isPremiumJoin) {
@@ -362,7 +364,8 @@ final class VelocityProxyBridge {
         boolean sent = currentServer.get().sendPluginMessage(
             AUTHME_CHANNEL, createPerformLoginMessage(normalizedName, verifiedPremiumUuid));
         if (sent) {
-            logger.info("Sending auto-login request to server '{}' for player {}", serverName, normalizedName);
+            logger.info("Sending auto-login request to server '{}' for player {} (verifiedPremiumUuid={})",
+                serverName, normalizedName, verifiedPremiumUuid);
             initiatePendingLogin(normalizedName);
         } else {
             logger.warn("Failed to send auto-login request to server '{}' for player {}; scheduling retry", serverName, normalizedName);

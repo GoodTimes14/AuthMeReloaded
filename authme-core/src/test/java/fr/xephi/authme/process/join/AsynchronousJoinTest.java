@@ -280,6 +280,8 @@ public class AsynchronousJoinTest {
         fr.xephi.authme.data.auth.PlayerAuth auth = mock(fr.xephi.authme.data.auth.PlayerAuth.class);
         given(database.getAuth("bobby")).willReturn(auth);
         given(auth.isPremium()).willReturn(false);
+        // No signed perform.login queued yet -> defer instead of failing the enrollment
+        given(proxySessionManager.getLoginRequest("Bobby")).willReturn(null);
 
         // when
         asynchronousJoin.processJoin(player);
@@ -290,6 +292,38 @@ public class AsynchronousJoinTest {
         verify(service, never()).send(eq(player), eq(fr.xephi.authme.message.MessageKey.PREMIUM_PENDING_FAIL));
         verify(premiumService, never()).finalizePendingPremium(any(), any());
         verify(limboService).createLimboPlayer(player, true);
+    }
+
+    @Test
+    public void shouldFinalizePendingPremiumInJoinFromQueuedProxyRequest() {
+        // given — keepOfflineUuidCompatibility=true: backend player is offline v3, but the signed
+        // perform.login carrying the proxy-verified Mojang UUID is already queued. The enrollment
+        // must finalize in-join (mirrors the v4 path) instead of dropping the player to limbo.
+        Player player = mockPlayer("Bobby");
+        setUpRegisteredJoin(player);
+        given(service.getProperty(PremiumSettings.ENABLE_PREMIUM)).willReturn(true);
+        given(bungeeSender.isEnabled()).willReturn(true);
+        UUID offlineUuid = UUID.fromString("f0647d73-8421-3979-bdb6-6b88dc3d03d4");
+        given(player.getUniqueId()).willReturn(offlineUuid);
+
+        fr.xephi.authme.data.auth.PlayerAuth auth = mock(fr.xephi.authme.data.auth.PlayerAuth.class);
+        given(database.getAuth("bobby")).willReturn(auth);
+        given(auth.isPremium()).willReturn(false);
+
+        UUID mojangUuid = UUID.randomUUID();
+        given(proxySessionManager.getLoginRequest("Bobby"))
+            .willReturn(new ProxySessionManager.ProxyLoginRequest("bobby", mojangUuid));
+        given(pendingPremiumCache.removePending("Bobby")).willReturn(mojangUuid);
+
+        // when
+        asynchronousJoin.processJoin(player);
+
+        // then
+        verify(premiumService).finalizePendingPremium(player, mojangUuid);
+        verify(asynchronousLogin).forceLoginFromProxy(player);
+        verify(limboService, never()).createLimboPlayer(player, true);
+        verify(service, never()).send(eq(player), eq(fr.xephi.authme.message.MessageKey.PREMIUM_PENDING_FAIL));
+        verify(bungeeSender, never()).sendPremiumUnset("Bobby");
     }
 
     @Test

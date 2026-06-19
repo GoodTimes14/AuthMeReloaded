@@ -453,9 +453,35 @@ public class AsynchronousJoin implements AsynchronousProcess {
                 service.send(player, MessageKey.PREMIUM_PENDING_FAIL);
                 return false;
             } else if (bungeeSender.isEnabled()) {
-                // Behind a proxy we intentionally keep the backend UUID on the offline v3 value.
-                // Wait for the signed perform.login request carrying the verified Mojang UUID
-                // instead of failing the pending premium enrollment during join.
+                // Behind a proxy we intentionally keep the backend UUID on the offline v3 value, so
+                // player.getUniqueId() is not proof of identity. If the signed perform.login is already
+                // queued and carries the proxy-verified Mojang UUID, finalize the pending enrollment
+                // in-join (mirrors the v4 path); otherwise defer to the perform.login message.
+                ProxySessionManager.ProxyLoginRequest queued = proxySessionManager.getLoginRequest(name);
+                UUID verified = queued == null ? null : queued.verifiedPremiumUuid();
+                if (verified == null) {
+                    logger.debug("canBypassWithPremium[v3/proxy]: " + name
+                        + " has a pending premium enrollment but no queued verified UUID yet; deferring to perform.login");
+                    return false;
+                }
+                // removePending is the atomic one-shot gate shared with ProxyLoginRequestValidator:
+                // if a concurrent perform.login already consumed it, stay silent and let that path win.
+                UUID pendingUuid = pendingPremiumCache.removePending(name);
+                if (pendingUuid == null) {
+                    logger.debug("canBypassWithPremium[v3/proxy]: pending entry for " + name
+                        + " already consumed (concurrent perform.login); deferring");
+                    return false;
+                }
+                if (verified.equals(pendingUuid)) {
+                    logger.info("canBypassWithPremium[v3/proxy]: finalizing pending premium for " + name
+                        + " from queued perform.login (verified=" + verified + ")");
+                    premiumService.finalizePendingPremium(player, verified);
+                    return true;
+                }
+                logger.warning("canBypassWithPremium[v3/proxy]: verified UUID " + verified
+                    + " does not match pending UUID " + pendingUuid + " for " + name + "; failing enrollment");
+                bungeeSender.sendPremiumUnset(name);
+                service.send(player, MessageKey.PREMIUM_PENDING_FAIL);
                 return false;
             } else {
                 // No proxy: require cryptographic session verification via PacketEvents.

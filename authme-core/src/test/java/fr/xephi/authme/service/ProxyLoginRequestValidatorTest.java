@@ -86,6 +86,22 @@ class ProxyLoginRequestValidatorTest {
     }
 
     @Test
+    void shouldStaySilentWhenPendingAlreadyConsumed() {
+        // given — canBypassWithPremium already consumed the pending entry via the atomic gate;
+        // the concurrent perform.login validate must not emit a spurious PREMIUM_PENDING_FAIL
+        UUID forwardedUuid = UUID.randomUUID();
+        PlayerAuth auth = PlayerAuth.builder().name("bobby").build();
+        given(player.getName()).willReturn("Bobby");
+        given(playerCache.getAuth("Bobby")).willReturn(auth);
+        given(pendingPremiumCache.removePending("Bobby")).willReturn(null);
+
+        assertFalse(validator.validate(player, forwardedUuid));
+        verify(bungeeSender, never()).sendPremiumUnset("Bobby");
+        verify(messages, never()).send(player, MessageKey.PREMIUM_PENDING_FAIL);
+        verify(premiumService, never()).finalizePendingPremium(player, forwardedUuid);
+    }
+
+    @Test
     void shouldRejectPendingPremiumUuidMismatchAndNotifyPlayer() {
         UUID pendingUuid = UUID.randomUUID();
         UUID forwardedUuid = UUID.randomUUID();

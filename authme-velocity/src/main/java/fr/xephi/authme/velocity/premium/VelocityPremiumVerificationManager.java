@@ -54,7 +54,10 @@ public final class VelocityPremiumVerificationManager {
 
         UUID verifiedPremiumUuid = event.getOriginalProfile().getId();
         loginVerifier.storeVerified(normalizedName, verifiedPremiumUuid);
-        if (keepOfflineUuidCompatibility.getAsBoolean()) {
+        boolean rewrite = keepOfflineUuidCompatibility.getAsBoolean();
+        logger.info("onGameProfileRequest: stored verified premium UUID {} for '{}' (keepOfflineUuidCompatibility={})",
+            verifiedPremiumUuid, normalizedName, rewrite);
+        if (rewrite) {
             event.setGameProfile(event.getGameProfile().withId(UuidUtils.generateOfflinePlayerUuid(event.getUsername())));
         }
 

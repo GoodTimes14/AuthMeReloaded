@@ -22,6 +22,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.UUID;
+
+import static fr.xephi.authme.service.BukkitServiceTestHelper.setBukkitServiceToRunTaskAsynchronously;
+import static fr.xephi.authme.service.BukkitServiceTestHelper.setBukkitServiceToScheduleSyncTaskFromOptionallyAsyncTask;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -155,12 +159,85 @@ class BungeeReceiverTest {
         verify(bungeeSender, never()).sendAuthMeBungeecordMessage(any(), any());
     }
 
+    @Test
+    void shouldFinalizePremiumLoginWhenValidateAcceptsVerifiedUuid() {
+        // given
+        String sharedSecret = "test-secret";
+        String playerName = "Bobby";
+        UUID verifiedUuid = UUID.fromString("8d6d0684-d8b4-4d40-8d2d-0dd4df5555c8");
+        long timestamp = System.currentTimeMillis();
+        String hmac = HashUtils.hmacSha256(sharedSecret, playerName + ":" + timestamp + ":" + verifiedUuid);
+
+        given(settings.getProperty(HooksSettings.BUNGEECORD)).willReturn(true);
+        given(settings.getProperty(HooksSettings.PROXY_SHARED_SECRET)).willReturn(sharedSecret);
+        given(messenger.isIncomingChannelRegistered(plugin, "authme:main")).willReturn(false);
+        setBukkitServiceToRunTaskAsynchronously(bukkitService);
+        setBukkitServiceToScheduleSyncTaskFromOptionallyAsyncTask(bukkitService);
+
+        Player player = mock(Player.class);
+        given(player.isOnline()).willReturn(true);
+        given(bukkitService.getPlayerExact(playerName)).willReturn(player);
+        given(proxyLoginRequestValidator.validate(player, verifiedUuid)).willReturn(true);
+
+        BungeeReceiver receiver =
+            new BungeeReceiver(plugin, bukkitService, proxySessionManager, management, bungeeSender, dataSource,
+                proxyLoginRequestValidator, settings);
+
+        byte[] payload = buildPerformLoginPayload(playerName, timestamp, verifiedUuid.toString(), hmac);
+
+        // when
+        receiver.onPluginMessageReceived("authme:main", player, payload);
+
+        // then
+        verify(proxySessionManager).processProxySessionMessage(playerName, verifiedUuid);
+        verify(management).forceLoginFromProxy(player);
+        verify(bungeeSender).sendAuthMeBungeecordMessage(player, MessageType.PERFORM_LOGIN_ACK);
+    }
+
+    @Test
+    void shouldRemoveQueuedRequestWhenPremiumValidateRejects() {
+        // given
+        String sharedSecret = "test-secret";
+        String playerName = "Bobby";
+        UUID verifiedUuid = UUID.fromString("8d6d0684-d8b4-4d40-8d2d-0dd4df5555c8");
+        long timestamp = System.currentTimeMillis();
+        String hmac = HashUtils.hmacSha256(sharedSecret, playerName + ":" + timestamp + ":" + verifiedUuid);
+
+        given(settings.getProperty(HooksSettings.BUNGEECORD)).willReturn(true);
+        given(settings.getProperty(HooksSettings.PROXY_SHARED_SECRET)).willReturn(sharedSecret);
+        given(messenger.isIncomingChannelRegistered(plugin, "authme:main")).willReturn(false);
+        setBukkitServiceToRunTaskAsynchronously(bukkitService);
+
+        Player player = mock(Player.class);
+        given(player.isOnline()).willReturn(true);
+        given(bukkitService.getPlayerExact(playerName)).willReturn(player);
+        given(proxyLoginRequestValidator.validate(player, verifiedUuid)).willReturn(false);
+
+        BungeeReceiver receiver =
+            new BungeeReceiver(plugin, bukkitService, proxySessionManager, management, bungeeSender, dataSource,
+                proxyLoginRequestValidator, settings);
+
+        byte[] payload = buildPerformLoginPayload(playerName, timestamp, verifiedUuid.toString(), hmac);
+
+        // when
+        receiver.onPluginMessageReceived("authme:main", player, payload);
+
+        // then
+        verify(proxySessionManager).removeLoginRequest(playerName);
+        verify(management, never()).forceLoginFromProxy(any());
+        verify(bungeeSender, never()).sendAuthMeBungeecordMessage(any(), any());
+    }
+
     private static byte[] buildPerformLoginPayload(String playerName, long timestamp, String hmac) {
+        return buildPerformLoginPayload(playerName, timestamp, "", hmac);
+    }
+
+    private static byte[] buildPerformLoginPayload(String playerName, long timestamp, String uuid, String hmac) {
         ByteArrayDataOutput out = ByteStreams.newDataOutput();
         out.writeUTF(MessageType.PERFORM_LOGIN.getId());
         out.writeUTF(playerName);
         out.writeLong(timestamp);
-        out.writeUTF("");
+        out.writeUTF(uuid);
         out.writeUTF(hmac);
         return out.toByteArray();
     }

@@ -33,7 +33,7 @@ final class ProxyPremiumLoginVerifier {
         "https://sessionserver.mojang.com/session/minecraft/hasJoined";
     private static final Pattern UUID_PATTERN =
         Pattern.compile("\"id\"\\s*:\\s*\"([0-9a-fA-F]{32})\"");
-    private static final long VERIFIED_TTL_MS = 60_000L;
+    private static final long VERIFIED_TTL_MS = 120_000L;
     private static final long PENDING_TTL_MS = 30_000L;
 
     private final KeyPair rsaKeyPair;
@@ -136,6 +136,8 @@ final class ProxyPremiumLoginVerifier {
             return null;
         }
         if (System.currentTimeMillis() - verifiedSession.verifiedAt() > VERIFIED_TTL_MS) {
+            warningLogger.accept("Verified premium session for '" + normalizedName + "' expired (TTL "
+                + VERIFIED_TTL_MS + "ms) before perform.login could use it");
             verified.remove(normalizedName);
             return null;
         }

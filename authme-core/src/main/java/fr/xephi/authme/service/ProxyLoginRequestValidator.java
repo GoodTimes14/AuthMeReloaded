@@ -87,12 +87,14 @@ public class ProxyLoginRequestValidator {
 
         if (!verifiedPremiumUuid.equals(pendingPremiumUuid)) {
             logger.warning("Rejected proxy premium login for " + playerName
-                + ": verified UUID does not match pending premium UUID");
+                + ": verified UUID " + verifiedPremiumUuid + " does not match pending premium UUID "
+                + pendingPremiumUuid);
             bungeeSender.sendPremiumUnset(playerName);
             messages.send(player, MessageKey.PREMIUM_PENDING_FAIL);
             return false;
         }
 
+        logger.info("Finalizing pending premium for " + playerName + " (verified=" + verifiedPremiumUuid + ")");
         premiumService.finalizePendingPremium(player, verifiedPremiumUuid);
         return true;
     }
