@@ -18,7 +18,6 @@ import net.md_5.bungee.api.event.ChatEvent;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PlayerHandshakeEvent;
 import net.md_5.bungee.api.event.PluginMessageEvent;
-import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.ServerConnectEvent;
 import net.md_5.bungee.api.event.ServerSwitchEvent;
 import net.md_5.bungee.api.plugin.Listener;
@@ -74,7 +73,6 @@ public final class BungeeProxyBridge implements Listener {
     private List<String> premiumListBuffer = new ArrayList<>();
     // Players with a pending premium verification (ran /premium but not yet confirmed via reconnect)
     private volatile Set<String> pendingPremiumUsernames = ConcurrentHashMap.newKeySet();
-    private final Map<String, UUID> uniqueIdCache = new ConcurrentHashMap<>();
     private final BungeePremiumOnlineModeHandler premiumOnlineModeHandler;
     private final BungeePremiumVerificationManager premiumVerificationManager;
     private final ScheduledExecutorService retryScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
