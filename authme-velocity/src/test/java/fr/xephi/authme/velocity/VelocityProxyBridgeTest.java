@@ -21,7 +21,7 @@ import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import fr.xephi.authme.velocity.events.AuthMeVelocityLoginEvent;
 import fr.xephi.authme.velocity.events.AuthMeVelocityLogoutEvent;
-import fr.xephi.authme.velocity.events.AuthmeVelocityAutoLoginEvent;
+import fr.xephi.authme.velocity.events.AuthMeVelocityAutoLoginEvent;
 import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -602,15 +602,15 @@ class VelocityProxyBridgeTest {
 
     private void stubAutoLoginAllowed() {
         given(proxyServer.getEventManager()).willReturn(eventManager);
-        given(eventManager.fire(any(AuthmeVelocityAutoLoginEvent.class)))
+        given(eventManager.fire(any(AuthMeVelocityAutoLoginEvent.class)))
             .willAnswer(inv -> CompletableFuture.completedFuture(inv.getArgument(0)));
     }
 
     private void stubAutoLoginDenied() {
         given(proxyServer.getEventManager()).willReturn(eventManager);
-        given(eventManager.fire(any(AuthmeVelocityAutoLoginEvent.class))).willAnswer(inv -> {
-            AuthmeVelocityAutoLoginEvent event = inv.getArgument(0);
-            event.setResult(AuthmeVelocityAutoLoginEvent.GenericResult.denied());
+        given(eventManager.fire(any(AuthMeVelocityAutoLoginEvent.class))).willAnswer(inv -> {
+            AuthMeVelocityAutoLoginEvent event = inv.getArgument(0);
+            event.setResult(AuthMeVelocityAutoLoginEvent.GenericResult.denied());
             return CompletableFuture.completedFuture(event);
         });
     }

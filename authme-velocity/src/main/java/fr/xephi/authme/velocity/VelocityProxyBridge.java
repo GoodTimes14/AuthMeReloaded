@@ -21,7 +21,7 @@ import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import fr.xephi.authme.velocity.events.AuthMeVelocityLoginEvent;
 import fr.xephi.authme.velocity.events.AuthMeVelocityLogoutEvent;
-import fr.xephi.authme.velocity.events.AuthmeVelocityAutoLoginEvent;
+import fr.xephi.authme.velocity.events.AuthMeVelocityAutoLoginEvent;
 import fr.xephi.authme.velocity.premium.VelocityPremiumVerificationManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -369,7 +369,7 @@ final class VelocityProxyBridge {
                 normalizedName);
         }
 
-        AuthmeVelocityAutoLoginEvent autoLoginEvent = new AuthmeVelocityAutoLoginEvent(event.getPlayer());
+        AuthMeVelocityAutoLoginEvent autoLoginEvent = new AuthMeVelocityAutoLoginEvent(event.getPlayer());
         proxyServer.getEventManager().fire(autoLoginEvent).thenAccept((auto) -> {
 
             if (!auto.getResult().isAllowed()) {
@@ -511,7 +511,7 @@ final class VelocityProxyBridge {
         String currentServerName = currentServer.getServerInfo().getName();
         logger.info("Player {} already on server '{}' when login message arrived — sending auto-login immediately",
             normalizedName, currentServerName);
-        AuthmeVelocityAutoLoginEvent autoLoginEvent = new AuthmeVelocityAutoLoginEvent(playerOpt.get());
+        AuthMeVelocityAutoLoginEvent autoLoginEvent = new AuthMeVelocityAutoLoginEvent(playerOpt.get());
         proxyServer.getEventManager().fire(autoLoginEvent).thenAccept(auto -> {
             if (!auto.getResult().isAllowed()) {
                 logger.debug("Auto-login cancelled for {} via event (already-switched path)", normalizedName);
@@ -597,7 +597,7 @@ final class VelocityProxyBridge {
                 logger.warn("No auto-login ACK received for {} after {} retries; giving up", normalizedName, MAX_RETRIES);
                 return;
             }
-            AuthmeVelocityAutoLoginEvent autoLoginEvent = new AuthmeVelocityAutoLoginEvent(playerOpt.get());
+            AuthMeVelocityAutoLoginEvent autoLoginEvent = new AuthMeVelocityAutoLoginEvent(playerOpt.get());
             proxyServer.getEventManager().fire(autoLoginEvent).thenAccept(auto -> {
                 if (!auto.getResult().isAllowed()) {
                     logger.debug("Auto-login cancelled for {} via event (retry {})", normalizedName, current + 1);
