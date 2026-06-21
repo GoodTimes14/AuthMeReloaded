@@ -2,6 +2,9 @@ package fr.xephi.authme.bungee;
 
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
+import fr.xephi.authme.bungee.events.AuthMeBungeeAutoLoginEvent;
+import fr.xephi.authme.bungee.events.AuthMeBungeeLoginEvent;
+import fr.xephi.authme.bungee.events.AuthMeBungeeLogoutEvent;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.PendingConnection;
@@ -13,6 +16,7 @@ import net.md_5.bungee.api.event.PlayerHandshakeEvent;
 import net.md_5.bungee.api.event.PluginMessageEvent;
 import net.md_5.bungee.api.event.ServerConnectEvent;
 import net.md_5.bungee.api.event.ServerSwitchEvent;
+import net.md_5.bungee.api.plugin.PluginManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +33,8 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -85,6 +91,9 @@ class BungeeProxyBridgeTest {
     @Mock
     private PendingConnection pendingConnection;
 
+    @Mock
+    private PluginManager pluginManager;
+
     @Captor
     private ArgumentCaptor<byte[]> payloadCaptor;
 
@@ -101,6 +110,7 @@ class BungeeProxyBridgeTest {
         given(currentServer.getInfo()).willReturn(authServerInfo);
         given(authServerInfo.getName()).willReturn("lobby");
 
+        stubEventsAllowed();
         BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerSwitch(serverSwitchEvent);
@@ -160,6 +170,7 @@ class BungeeProxyBridgeTest {
         given(proxyServer.getPlayer("alice")).willReturn(player);
         given(proxyServer.getServerInfo("limbo")).willReturn(nonAuthServerInfo);
 
+        stubEventsAllowed();
         BungeeProxyBridge bridge = new BungeeProxyBridge(
             proxyServer, logger, new BungeeProxyConfiguration(
                 Set.of("lobby"), false, true, Set.of("/login"), true, true,
@@ -196,6 +207,7 @@ class BungeeProxyBridgeTest {
         given(currentServer.getInfo()).willReturn(authServerInfo);
         given(serverSwitchEvent.getFrom()).willReturn(null);
 
+        stubEventsAllowed();
         BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerSwitch(serverSwitchEvent);
@@ -204,8 +216,8 @@ class BungeeProxyBridgeTest {
         given(pluginMessageEvent.getData()).willReturn(createAuthMePayload("perform.login.ack", "Alice"));
         bridge.onPluginMessage(pluginMessageEvent);
 
-        // getPlayer called exactly once by sendAutoLoginIfAlreadySwitched (on login), not by any retry
-        verify(proxyServer, org.mockito.Mockito.times(1)).getPlayer("alice");
+        // getPlayer called twice: once by login event lookup, once by sendAutoLoginIfAlreadySwitched — not by any retry
+        verify(proxyServer, org.mockito.Mockito.times(2)).getPlayer("alice");
     }
 
     @Test
@@ -220,6 +232,7 @@ class BungeeProxyBridgeTest {
         given(player.getServer()).willReturn(currentServer);
         given(currentServer.getInfo()).willReturn(authServerInfo);
 
+        stubEventsAllowed();
         BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
 
         // Mark authenticated via auth server login
@@ -233,8 +246,8 @@ class BungeeProxyBridgeTest {
         given(sourceServer.getInfo()).willReturn(nonAuthServerInfo);
         bridge.onPluginMessage(pluginMessageEvent);
 
-        // getPlayer called exactly once by sendAutoLoginIfAlreadySwitched (on login from auth server), not by retries
-        verify(proxyServer, org.mockito.Mockito.times(1)).getPlayer("alice");
+        // getPlayer called twice: once by login event lookup, once by sendAutoLoginIfAlreadySwitched — not by retries
+        verify(proxyServer, org.mockito.Mockito.times(2)).getPlayer("alice");
     }
 
     @Test
@@ -349,7 +362,6 @@ class BungeeProxyBridgeTest {
         given(sourceServer.getInfo()).willReturn(authServerInfo);
         given(authServerInfo.getName()).willReturn("lobby");
         given(serverSwitchEvent.getPlayer()).willReturn(player);
-        given(player.getName()).willReturn("Alice");
         given(player.getServer()).willReturn(currentServer);
         given(currentServer.getInfo()).willReturn(nonAuthServerInfo);
         given(nonAuthServerInfo.getName()).willReturn("survival");
@@ -376,6 +388,7 @@ class BungeeProxyBridgeTest {
         given(serverSwitchEvent.getFrom()).willReturn(authServerInfo);
         given(authServerInfo.getName()).willReturn("lobby");
 
+        stubEventsAllowed();
         BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerSwitch(serverSwitchEvent);
@@ -439,6 +452,7 @@ class BungeeProxyBridgeTest {
         given(currentServer.getInfo()).willReturn(nonAuthServerInfo);
         given(nonAuthServerInfo.getName()).willReturn("survival");
 
+        stubEventsAllowed();
         BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
         bridge.onPluginMessage(pluginMessageEvent);
 
@@ -480,11 +494,91 @@ class BungeeProxyBridgeTest {
         verify(pendingConnection).setOnlineMode(true);
     }
 
+    @Test
+    void shouldFireLoginEventWhenPlayerAuthenticatesOnAuthServer() {
+        given(pluginMessageEvent.isCancelled()).willReturn(false);
+        given(pluginMessageEvent.getTag()).willReturn(BungeeProxyBridge.AUTHME_CHANNEL);
+        given(pluginMessageEvent.getSender()).willReturn(sourceServer);
+        given(pluginMessageEvent.getData()).willReturn(createAuthMePayload("login", "Alice"));
+        given(sourceServer.getInfo()).willReturn(authServerInfo);
+        given(authServerInfo.getName()).willReturn("lobby");
+        given(proxyServer.getPlayer("alice")).willReturn(player);
+        given(player.getServer()).willReturn(currentServer);
+        given(currentServer.getInfo()).willReturn(authServerInfo);
+
+        stubEventsAllowed();
+
+        BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
+        bridge.onPluginMessage(pluginMessageEvent);
+
+        ArgumentCaptor<AuthMeBungeeLoginEvent> eventCaptor = ArgumentCaptor.forClass(AuthMeBungeeLoginEvent.class);
+        verify(pluginManager).callEvent(eventCaptor.capture());
+        assertSame(player, eventCaptor.getValue().getPlayer());
+        assertFalse(eventCaptor.getValue().isPremium());
+    }
+
+    @Test
+    void shouldFireLogoutEventWhenPlayerLogsOut() {
+        given(pluginMessageEvent.isCancelled()).willReturn(false);
+        given(pluginMessageEvent.getTag()).willReturn(BungeeProxyBridge.AUTHME_CHANNEL);
+        given(pluginMessageEvent.getSender()).willReturn(sourceServer);
+        given(pluginMessageEvent.getData()).willReturn(createAuthMePayload("logout", "Alice"));
+        given(proxyServer.getPlayer("alice")).willReturn(player);
+
+        stubEventsAllowed();
+
+        BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
+        bridge.onPluginMessage(pluginMessageEvent);
+
+        ArgumentCaptor<AuthMeBungeeLogoutEvent> eventCaptor = ArgumentCaptor.forClass(AuthMeBungeeLogoutEvent.class);
+        verify(pluginManager).callEvent(eventCaptor.capture());
+        assertSame(player, eventCaptor.getValue().getPlayer());
+    }
+
+    @Test
+    void shouldNotSendPerformLoginWhenAutoLoginEventIsCancelled() {
+        given(pluginMessageEvent.isCancelled()).willReturn(false);
+        given(pluginMessageEvent.getTag()).willReturn(BungeeProxyBridge.AUTHME_CHANNEL);
+        given(pluginMessageEvent.getSender()).willReturn(sourceServer);
+        given(pluginMessageEvent.getData()).willReturn(createAuthMePayload("login", "Alice"));
+        given(sourceServer.getInfo()).willReturn(authServerInfo);
+        given(serverSwitchEvent.getPlayer()).willReturn(player);
+        given(player.getName()).willReturn("Alice");
+        given(player.getServer()).willReturn(currentServer);
+        given(currentServer.getInfo()).willReturn(nonAuthServerInfo);
+        given(nonAuthServerInfo.getName()).willReturn("survival");
+        given(serverSwitchEvent.getFrom()).willReturn(authServerInfo);
+        given(authServerInfo.getName()).willReturn("lobby");
+
+        given(proxyServer.getPluginManager()).willReturn(pluginManager);
+        given(pluginManager.callEvent(any(AuthMeBungeeAutoLoginEvent.class)))
+            .willAnswer(inv -> {
+                AuthMeBungeeAutoLoginEvent event = inv.getArgument(0);
+                event.setCancelled(true);
+                return event;
+            });
+
+        BungeeProxyBridge bridge = new BungeeProxyBridge(proxyServer, logger, createConfiguration(), new BungeeAuthenticationStore(), null);
+        bridge.onPluginMessage(pluginMessageEvent);
+        bridge.onServerSwitch(serverSwitchEvent);
+
+        ArgumentCaptor<AuthMeBungeeAutoLoginEvent> eventCaptor = ArgumentCaptor.forClass(AuthMeBungeeAutoLoginEvent.class);
+        verify(pluginManager).callEvent(eventCaptor.capture());
+        assertSame(player, eventCaptor.getValue().getPlayer());
+        assertTrue(eventCaptor.getValue().isCancelled());
+        verify(nonAuthServerInfo, never()).sendData(any(String.class), any(byte[].class), eq(false));
+    }
+
     private static byte[] createChunkPayload(int seq, boolean last, String csv) {
         ByteArrayDataOutput output = ByteStreams.newDataOutput();
         output.writeUTF("premium.list.chunk");
         output.writeUTF(seq + ":" + (last ? "1" : "0") + ":" + csv);
         return output.toByteArray();
+    }
+
+    private void stubEventsAllowed() {
+        given(proxyServer.getPluginManager()).willReturn(pluginManager);
+        given(pluginManager.callEvent(any())).willAnswer(inv -> inv.getArgument(0));
     }
 
     private static BungeeProxyConfiguration createConfiguration() {
