@@ -3,7 +3,6 @@ package fr.xephi.authme.bungee;
 import com.google.common.io.ByteArrayDataInput;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
-import fr.xephi.authme.bungee.events.AuthMeBungeeAutoLoginEvent;
 import fr.xephi.authme.bungee.events.AuthMeBungeeLoginEvent;
 import fr.xephi.authme.bungee.events.AuthMeBungeeLogoutEvent;
 import fr.xephi.authme.bungee.premium.BungeePremiumOnlineModeHandler;
@@ -368,13 +367,6 @@ public final class BungeeProxyBridge implements Listener {
             logger.fine("PacketEvents-verified premium player " + normalizedName
                 + " joining auth server — sending perform.login immediately");
         }
-        AuthMeBungeeAutoLoginEvent autoLoginEvent = new AuthMeBungeeAutoLoginEvent(player);
-        proxyServer.getPluginManager().callEvent(autoLoginEvent);
-        if (autoLoginEvent.isCancelled()) {
-            logger.fine("Auto-login cancelled for player " + normalizedName + " via event");
-            return;
-        }
-
         String serverName = currentServer.getInfo().getName();
         logger.info("Sending auto-login request to server '" + serverName + "' for player " + normalizedName);
         currentServer.getInfo().sendData(
@@ -472,13 +464,6 @@ public final class BungeeProxyBridge implements Listener {
             return;
         }
 
-        AuthMeBungeeAutoLoginEvent autoLoginEvent = new AuthMeBungeeAutoLoginEvent(player);
-        proxyServer.getPluginManager().callEvent(autoLoginEvent);
-        if (autoLoginEvent.isCancelled()) {
-            logger.fine("Auto-login cancelled for player " + normalizedName + " (via event)");
-            return;
-        }
-
         String currentServerName = currentConn.getInfo().getName();
         logger.info("Player " + normalizedName + " already on server '" + currentServerName
             + "' when login message arrived — sending auto-login immediately");
@@ -538,14 +523,6 @@ public final class BungeeProxyBridge implements Listener {
             if (server == null) {
                 pendingAutoLogins.remove(normalizedName);
                 logger.fine("Auto-login retry cancelled for " + normalizedName + " (player has no active server)");
-                return;
-            }
-
-            AuthMeBungeeAutoLoginEvent autoLoginEvent = new AuthMeBungeeAutoLoginEvent(player);
-            proxyServer.getPluginManager().callEvent(autoLoginEvent);
-            if (autoLoginEvent.isCancelled()) {
-                logger.fine("Auto-login cancelled for player " + normalizedName + " (via event)");
-                cancelPendingLogin(normalizedName);
                 return;
             }
 

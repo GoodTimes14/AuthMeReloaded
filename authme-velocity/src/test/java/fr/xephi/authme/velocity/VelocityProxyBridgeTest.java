@@ -21,7 +21,6 @@ import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerInfo;
 import fr.xephi.authme.velocity.events.AuthMeVelocityLoginEvent;
 import fr.xephi.authme.velocity.events.AuthMeVelocityLogoutEvent;
-import fr.xephi.authme.velocity.events.AuthMeVelocityAutoLoginEvent;
 import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +34,6 @@ import org.slf4j.Logger;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -129,7 +127,6 @@ class VelocityProxyBridgeTest {
             .willReturn(true);
 
         VelocityProxyBridge bridge = new VelocityProxyBridge(proxyServer, logger, createConfiguration(), new VelocityAuthenticationStore(), null);
-        stubAutoLoginAllowed();
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerConnected(new ServerConnectedEvent(player, authServer, null));
 
@@ -240,7 +237,7 @@ class VelocityProxyBridgeTest {
         given(proxyServer.getPlayer("alice")).willReturn(Optional.of(player));
 
         VelocityProxyBridge bridge = new VelocityProxyBridge(proxyServer, logger, createConfiguration(), new VelocityAuthenticationStore(), null);
-        stubAutoLoginAllowed();
+        given(proxyServer.getEventManager()).willReturn(eventManager);
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerConnected(new ServerConnectedEvent(player, authServer, null));
 
@@ -276,7 +273,7 @@ class VelocityProxyBridgeTest {
         // Mark authenticated via auth server login
         given(pluginMessageEvent.getData()).willReturn(createAuthMePayload("login", "Alice"));
         given(sourceConnection.getServer()).willReturn(authServer);
-        stubAutoLoginAllowed();
+        given(proxyServer.getEventManager()).willReturn(eventManager);
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerConnected(new ServerConnectedEvent(player, authServer, null));
 
@@ -373,34 +370,11 @@ class VelocityProxyBridgeTest {
             .willReturn(true);
 
         VelocityProxyBridge bridge = new VelocityProxyBridge(proxyServer, logger, createConfiguration(), new VelocityAuthenticationStore(), null);
-        stubAutoLoginAllowed();
         bridge.onPluginMessage(pluginMessageEvent);
         bridge.onServerConnected(new ServerConnectedEvent(player, nonAuthServer, authServer));
 
         verify(currentServer).sendPluginMessage(eq(VelocityProxyBridge.AUTHME_CHANNEL), payloadCaptor.capture());
         assertPerformLoginPayload(payloadCaptor.getValue(), "alice", "test-secret");
-    }
-
-    @Test
-    void shouldNotForwardPerformLoginWhenAutoLoginEventIsDenied() {
-        given(pluginMessageEvent.getResult()).willReturn(PluginMessageEvent.ForwardResult.forward());
-        given(pluginMessageEvent.getIdentifier()).willReturn(VelocityProxyBridge.AUTHME_CHANNEL);
-        given(pluginMessageEvent.getSource()).willReturn(sourceConnection);
-        given(pluginMessageEvent.getData()).willReturn(createAuthMePayload("login", "Alice"));
-        given(sourceConnection.getServer()).willReturn(authServer);
-        given(authServer.getServerInfo()).willReturn(authServerInfo);
-        given(authServerInfo.getName()).willReturn("lobby");
-        given(nonAuthServer.getServerInfo()).willReturn(nonAuthServerInfo);
-        given(nonAuthServerInfo.getName()).willReturn("survival");
-        given(proxyServer.getPlayer("alice")).willReturn(Optional.of(player));
-        given(player.getCurrentServer()).willReturn(Optional.of(currentServer));
-        given(currentServer.getServer()).willReturn(nonAuthServer);
-        stubAutoLoginDenied();
-
-        VelocityProxyBridge bridge = new VelocityProxyBridge(proxyServer, logger, createConfiguration(), new VelocityAuthenticationStore(), null);
-        bridge.onPluginMessage(pluginMessageEvent);
-
-        verify(currentServer, never()).sendPluginMessage(any(), any(byte[].class));
     }
 
     // --- Command blocking tests ---
@@ -598,21 +572,6 @@ class VelocityProxyBridgeTest {
         output.writeUTF("premium.list.chunk");
         output.writeUTF(seq + ":" + (last ? "1" : "0") + ":" + csv);
         return output.toByteArray();
-    }
-
-    private void stubAutoLoginAllowed() {
-        given(proxyServer.getEventManager()).willReturn(eventManager);
-        given(eventManager.fire(any(AuthMeVelocityAutoLoginEvent.class)))
-            .willAnswer(inv -> CompletableFuture.completedFuture(inv.getArgument(0)));
-    }
-
-    private void stubAutoLoginDenied() {
-        given(proxyServer.getEventManager()).willReturn(eventManager);
-        given(eventManager.fire(any(AuthMeVelocityAutoLoginEvent.class))).willAnswer(inv -> {
-            AuthMeVelocityAutoLoginEvent event = inv.getArgument(0);
-            event.setResult(AuthMeVelocityAutoLoginEvent.GenericResult.denied());
-            return CompletableFuture.completedFuture(event);
-        });
     }
 
     private static VelocityProxyConfiguration createConfiguration() {
