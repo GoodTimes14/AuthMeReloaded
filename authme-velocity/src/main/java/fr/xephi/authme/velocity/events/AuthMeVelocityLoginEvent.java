@@ -13,10 +13,21 @@ public class AuthMeVelocityLoginEvent {
         this.premium = premium;
     }
 
+    /**
+     * Return the player concerned by this event.
+     *
+     * @return The player who logged in correctly in the backend
+     */
     public Player getPlayer() {
         return player;
     }
 
+
+    /**
+     * Return whether this player required Premium verification for login
+     *
+     * @return if the player required premium verification
+     */
     public boolean isPremium() {
         return premium;
     }

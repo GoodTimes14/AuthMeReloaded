@@ -11,6 +11,11 @@ public class AuthMeBungeeLogoutEvent extends Event {
         this.player = player;
     }
 
+    /**
+     * Return the player concerned by this event.
+     *
+     * @return The player who logged out correctly in the backend
+     */
     public ProxiedPlayer getPlayer() {
         return player;
     }
